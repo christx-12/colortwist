@@ -21,7 +21,7 @@ class ExerciseEvaluatorApp:
         ))
         
         # Kamera
-        self.cap = cv2.VideoCapture(3)
+        self.cap = cv2.VideoCapture(0)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         if not self.cap.isOpened():
@@ -122,7 +122,7 @@ class ExerciseEvaluatorApp:
         if info.get("last_rep"):
             rep = info["last_rep"]
             color = (0, 255, 0) if rep.is_good else (0, 0, 255)
-            status = "✅ GUT" if rep.is_good else "❌ SCHLECHT"
+            status = "GUT" if rep.is_good else "SCHLECHT"
             cv2.putText(stats_img, f"Rep {rep.rep_id}: {status}", (20, y),
                        self.font, 0.8, color, 2)
             y += 25
@@ -148,7 +148,7 @@ class ExerciseEvaluatorApp:
         return stats_img
 
     def run(self):
-        print("✅ Bereit! Steh vor Kamera & mach Squats!")
+        print("Bereit! Steh vor Kamera & mach Squats!")
         print("'s'=Stats, 'r'=Reset, 'q'=Beenden")
         
         while True:
@@ -185,21 +185,21 @@ class ExerciseEvaluatorApp:
             cv2.rectangle(frame, (15, 15), (480, 140), color, -1)
             cv2.rectangle(frame, (15, 15), (480, 140), (255,255,255), 2)
             
-            cv2.putText(frame, "🏋️ SQUAT TRAINER", (25, 45), self.font, 1.3, (0,0,0), 4)
+            cv2.putText(frame, "SQUAT TRAINER", (25, 45), self.font, 1.3, (0,0,0), 4)
             cv2.putText(frame, f"Status: {state.upper()}", (25, 75), self.font, 0.9, (255,255,255), 3)
             cv2.putText(frame, f"Winkel: {angle_text}", (25, 110), self.font, 0.9, (0,0,0), 3)
             
             # Live-Rep-Feedback
             if info.get("rep_finished") and info.get("last_rep"):
                 rep = info["last_rep"]
-                status = "✅ GUTE REP!" if rep.is_good else "❌ SCHLECHTE REP!"
+                status = "GUTE REP!" if rep.is_good else "SCHLECHTE REP!"
                 rep_color = (0, 255, 0) if rep.is_good else (0, 0, 255)
                 cv2.putText(frame, status, (520, 80), self.font, 1.2, rep_color, 3)
                 cv2.putText(frame, f"Score: {rep.score:.0%}", (520, 120), self.font, 1.0, rep_color, 3)
             
             # Pose-Status unten
             pose_ok = bool(keypoints)
-            cv2.putText(frame, "POSE OK ✓" if pose_ok else "NO POSE ✗", 
+            cv2.putText(frame, "POSE OK" if pose_ok else "NO POSE", 
                        (25, frame.shape[0]-40), self.font, 0.8, 
                        (0, 255, 0) if pose_ok else (0, 0, 255), 3)
             
@@ -212,7 +212,7 @@ class ExerciseEvaluatorApp:
             # Stats-Fenster
             if self.show_stats:
                 stats_img = self.create_stats_window(info, self.evaluator.summary())
-                cv2.imshow("📊 STATS", stats_img)
+                cv2.imshow("STATS", stats_img)
             
             # Tasten
             key = cv2.waitKey(1) & 0xFF
@@ -223,13 +223,13 @@ class ExerciseEvaluatorApp:
                 print(f"Stats: {'AN' if self.show_stats else 'AUS'}")
             elif key == ord('r'):
                 self.evaluator.rep_history.clear()
-                print("📊 Zurückgesetzt!")
+                print("Zurückgesetzt!")
         
         self.cap.release()
         cv2.destroyAllWindows()
         
         final = self.evaluator.summary()
-        print("\n🏆 FINALE ERGEBNISSE:")
+        print("\n FINALE ERGEBNISSE:")
         print(f"  Gute Reps: {final['good_reps']}")
         print(f"  Schlechte: {final['bad_reps']}")
         print(f"  Durchschnitt: {final['avg_score']:.1%}")
@@ -240,7 +240,7 @@ if __name__ == "__main__":
         app = ExerciseEvaluatorApp()
         app.run()
     except KeyboardInterrupt:
-        print("\n👋 Beendet.")
+        print("\n Beendet.")
     except Exception as e:
-        print(f"❌ Fehler: {e}")
+        print(f"Fehler: {e}")
        
