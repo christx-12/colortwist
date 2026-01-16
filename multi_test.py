@@ -138,10 +138,8 @@ class ExerciseApp:
             ret, frame = self.cap.read()
             if not ret:
                 break
-            q
             results = self.model.predict(frame, verbose=False, conf=0.5)
             keypoints = self.get_all_keypoints(results)
-            
             if keypoints:
                 frame = self.draw_exercise_skeleton(frame, keypoints)
             
