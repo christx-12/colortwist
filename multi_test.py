@@ -10,7 +10,7 @@ class ExerciseApp:
     def __init__(self):
         print("Initialisiere Modell...")
         self.model = YOLO("yolo11n-pose.pt")
-        self.cap = cv2.VideoCapture(3)
+        self.cap = cv2.VideoCapture(0)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.current_mode = "squat"
         self.set_mode("squat")
