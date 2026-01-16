@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 import time
 from ultralytics import YOLO
-from app.backend.base_evaluator import SquatEvaluator, PushupEvaluator, ExerciseConfig
+from app.backend.base_evaluator import SquatEvaluator, PushupEvaluator, ArmRaiseEvaluator, ExerciseConfig
 
 
 class RepFeedbackOverlay:
@@ -66,12 +66,19 @@ class ExerciseApp:
 
     def set_mode(self, mode):
         self.current_mode = mode
+
         if mode == "squat":
             config = ExerciseConfig(name="Squat", min_angle=85, max_angle_top=165, min_depth_ratio=0.1)
             self.evaluator = SquatEvaluator(config)
-        else:
+        elif mode == "pushup":
             config = ExerciseConfig(name="Pushup", min_angle=95, max_angle_top=155, min_depth_ratio=0.05)
             self.evaluator = PushupEvaluator(config)
+        elif mode == "armraise":
+            # ArmRaiseEvaluator comes with a sensible default config
+            self.evaluator = ArmRaiseEvaluator()
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
         print(f"Modus gewechselt zu: {mode.upper()}")
 
     def get_all_keypoints(self, results):
@@ -100,9 +107,12 @@ class ExerciseApp:
         if self.current_mode == "squat":
             pairs = [("hip", "knee"), ("knee", "ankle")]
             color = (0, 255, 255)
-        else:
+        elif self.current_mode == "pushup":
             pairs = [("shoulder", "elbow"), ("elbow", "wrist")]
             color = (255, 255, 0)
+        else:  # armraise
+            pairs = [("hip", "shoulder"), ("shoulder", "wrist")]
+            color = (0, 200, 0)
 
         for start_key, end_key in pairs:
             pt1 = keypoints.get(start_key)
@@ -119,12 +129,12 @@ class ExerciseApp:
         return frame
 
     def run(self):
-        print("Programm läuft. '1'=Squat, '2'=Pushup, 'r'=Reset, 'q'=Quit")
+        print("Programm läuft. '1'=Squat, '2'=Pushup, '3'=ArmRaise, 'r'=Reset, 'q'=Quit")
         while True:
             ret, frame = self.cap.read()
             if not ret:
                 break
-            
+            q
             results = self.model.predict(frame, verbose=False, conf=0.5)
             keypoints = self.get_all_keypoints(results)
             
@@ -161,6 +171,8 @@ class ExerciseApp:
                 self.set_mode("squat")
             elif key == ord('2'):
                 self.set_mode("pushup")
+            elif key == ord('3'):
+                self.set_mode("armraise")
             elif key == ord('r'):
                 self.evaluator.reset()
                 self.rep_feedback_overlay.reset()

@@ -262,3 +262,30 @@ class PushupEvaluator(BaseEvaluator):
         elbow = keypoints.get("elbow")
         wrist = keypoints.get("wrist")
         return (shoulder, elbow, wrist, shoulder)
+
+
+# ---- ArmRaiseEvaluator: single correct implementation ----
+class ArmRaiseEvaluator(BaseEvaluator):
+    """Arm Raises / Seitenheben: Angle = hip-shoulder-wrist, Reference = wrist_y.
+
+    We set min_depth_ratio=0.0 to avoid relying on vertical-depth scoring for this motion.
+    """
+
+    def __init__(self, config: Optional[ExerciseConfig] = None):
+        if config is None:
+            config = ExerciseConfig(
+                name="ArmRaise",
+                min_angle=45.0,
+                max_angle_top=160.0,
+                min_depth_ratio=0.0,
+                min_good_reps_ratio=0.6,
+                min_rep_duration=0.3,
+                max_rep_duration=5.0,
+            )
+        super().__init__(config)
+
+    def _get_relevant_points(self, keypoints: Dict):
+        hip = keypoints.get("hip")
+        shoulder = keypoints.get("shoulder")
+        wrist = keypoints.get("wrist")
+        return (hip, shoulder, wrist, wrist)
