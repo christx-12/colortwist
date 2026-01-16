@@ -76,6 +76,7 @@ class BaseEvaluator:
         cos_angle = max(min(dot / (mag_ba * mag_bc), 1.0), -1.0)
         return math.degrees(math.acos(cos_angle))
 
+    #Platzhalter-Methode. Sie zwingt jeden, der eine neue Übung erstellt, zu definieren, welche Keypoints genutzt werden.
     def _get_relevant_points(self, keypoints: Dict) -> Tuple[Optional[Tuple], ...]:
         """Override in Subclass: Gibt (point_a, point_b, point_c, ref_y_point) zurück."""
         raise NotImplementedError
@@ -237,6 +238,10 @@ class BaseEvaluator:
         self.__init__(self.config)
 
 
+# subklassen: überschreibe die platzhalterm
+# Implementierung: überschreibt _get_relevant_points
+# Logik: Sie pickt sich hip, knee und ankle aus dem Keypoint-Dictionary.
+# Rückgabe: Der Winkel wird über das Knie berechnet, die vertikale Höhe (y) wird von der Hüfte genommen.
 class SquatEvaluator(BaseEvaluator):
     """Squat: Winkel = hip-knee-ankle, Referenz = hip_y"""
     
@@ -246,10 +251,12 @@ class SquatEvaluator(BaseEvaluator):
         ankle = keypoints.get("ankle")
         return (hip, knee, ankle, hip)
 
-
+# Implementierung: überschreibe die platzhalter
+# Logik: Sie nutzt shoulder, elbow und wrist.
+# Rückgabe: Der Winkel wird über den Ellbogen berechnet, die Höhe (y) wird von der Schulter genommen.
 class PushupEvaluator(BaseEvaluator):
     """Pushup: Winkel = shoulder-elbow-wrist, Referenz = shoulder_y"""
-    
+
     def _get_relevant_points(self, keypoints: Dict):
         shoulder = keypoints.get("shoulder")
         elbow = keypoints.get("elbow")
