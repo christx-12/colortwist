@@ -17,6 +17,7 @@ class ExerciseConfig:
     max_rep_duration: float = 5.0     # Sekunden
 
 
+
 @dataclass
 class RepResult:
     rep_id: int

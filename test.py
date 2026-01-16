@@ -223,7 +223,7 @@ class ExerciseEvaluatorApp:
                 print(f"Stats: {'AN' if self.show_stats else 'AUS'}")
             elif key == ord('r'):
                 self.evaluator.rep_history.clear()
-                print("Zurückgesetzt!")
+                print(" Zurückgesetzt!")
         
         self.cap.release()
         cv2.destroyAllWindows()
