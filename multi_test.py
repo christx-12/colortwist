@@ -49,7 +49,7 @@ class RepFeedbackOverlay:
         cv2.putText(frame, f"Score: {score:.0%}", (x + 170, y), font, 0.6, color, 2)
 
         if reason and not is_good:
-            cv2.putText(frame, f"Hint: {reason}", (x, y + 25), font, 0.55, (255, 255, 255), 1)
+            cv2.putText(frame, f"Hint: {reason}", (x, y + 25), font, 0.55, (0, 0, 255), 1)
 
         return frame
 
@@ -149,8 +149,8 @@ class ExerciseApp:
             self.rep_feedback_overlay.update(info)
             
             # UI Overlay
-            cv2.rectangle(frame, (10, 10), (420, 180), (0, 0, 0), -1)
-            cv2.rectangle(frame, (10, 10), (420, 180), (255, 255, 255), 1)
+            cv2.rectangle(frame, (10, 10), (420, 200), (0, 0, 0), -1)
+            cv2.rectangle(frame, (10, 10), (420, 280), (255, 255, 255), 1)
             
             cv2.putText(frame, f"AKTIV: {self.evaluator.config.name}", (20, 40), self.font, 0.8, (255, 255, 255), 2)
             cv2.putText(frame, f"REPS: {len(self.evaluator.rep_history)}", (20, 90), self.font, 1.2, (0, 255, 0), 3)
