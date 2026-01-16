@@ -2,16 +2,65 @@
 
 import cv2
 import numpy as np
+import time
 from ultralytics import YOLO
 from app.backend.base_evaluator import SquatEvaluator, PushupEvaluator, ExerciseConfig
+
+
+class RepFeedbackOverlay:
+    """UI-only helper that keeps the last rep feedback visible for a short time."""
+
+    def __init__(self, hold_seconds: float = 3.0):
+        self.hold_seconds = hold_seconds
+        self._last_rep = None
+        self._last_time = 0.0
+
+    def update(self, info: dict) -> None:
+        """Capture rep result when a rep finishes (usually only true for 1 frame)."""
+        if info.get("rep_finished") and info.get("last_rep") is not None:
+            self._last_rep = info["last_rep"]
+            self._last_time = time.time()
+
+    def reset(self) -> None:
+        self._last_rep = None
+        self._last_time = 0.0
+
+    def draw(self, frame, font, origin=(20, 170)):
+        """Draw feedback if it is still within the hold window."""
+        if self._last_rep is None:
+            return frame
+
+        if (time.time() - self._last_time) > self.hold_seconds:
+            self._last_rep = None
+            return frame
+
+        rep = self._last_rep
+
+        # Support both object-style (rep.is_good) and dict-style (rep["is_good"]) reps
+        is_good = rep.get("is_good") if isinstance(rep, dict) else rep.is_good
+        score = rep.get("score", 0.0) if isinstance(rep, dict) else rep.score
+        reason = rep.get("reason", "") if isinstance(rep, dict) else (rep.reason or "")
+
+        status = "✅ GUTE REP!" if is_good else "❌ SCHLECHTE REP!"
+        color = (0, 255, 0) if is_good else (0, 0, 255)
+
+        x, y = origin
+        cv2.putText(frame, status, (x, y), font, 0.6, color, 2)
+        cv2.putText(frame, f"Score: {score:.0%}", (x + 170, y), font, 0.6, color, 2)
+
+        if reason and not is_good:
+            cv2.putText(frame, f"Hint: {reason}", (x, y + 25), font, 0.55, (255, 255, 255), 1)
+
+        return frame
 
 
 class ExerciseApp:
     def __init__(self):
         print("Initialisiere Modell...")
         self.model = YOLO("yolo11n-pose.pt")
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(1)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.rep_feedback_overlay = RepFeedbackOverlay(hold_seconds=3.0)
         self.current_mode = "squat"
         self.set_mode("squat")
 
@@ -84,6 +133,9 @@ class ExerciseApp:
             
             info = self.evaluator.evaluate_frame(keypoints)
             
+            # Update UI-only feedback state (keeps rep result visible for a moment)
+            self.rep_feedback_overlay.update(info)
+            
             # UI Overlay
             cv2.rectangle(frame, (10, 10), (420, 180), (0, 0, 0), -1)
             cv2.rectangle(frame, (10, 10), (420, 180), (255, 255, 255), 1)
@@ -98,14 +150,8 @@ class ExerciseApp:
             # Farbcodierung für Status
             state_color = (0, 255, 255) if state == "in_rep" else (255, 255, 0)
             cv2.putText(frame, f"STATUS: {state.upper()} | {angle_str}", (20, 140), self.font, 0.6, state_color, 1)
+            frame = self.rep_feedback_overlay.draw(frame, self.font, origin=(20, 170))
             
-            # Letzte Rep Feedback
-            if info.get("rep_finished") and info.get("last_rep"):
-                rep = info["last_rep"]
-                feedback = "GUT!" if rep.is_good else f"({rep.reason})"
-                fb_color = (0, 255, 0) if rep.is_good else (0, 0, 255)
-                cv2.putText(frame, feedback, (20, 170), self.font, 0.6, fb_color, 2)
-
             cv2.imshow("Multi-Exercise Trainer", frame)
             
             key = cv2.waitKey(1) & 0xFF
@@ -117,6 +163,7 @@ class ExerciseApp:
                 self.set_mode("pushup")
             elif key == ord('r'):
                 self.evaluator.reset()
+                self.rep_feedback_overlay.reset()
                 print("Counter zurückgesetzt!")
 
         self.cap.release()
