@@ -6,6 +6,7 @@ import math
 import time
 
 
+
 @dataclass
 class ExerciseConfig:
     name: str = "Squat"
@@ -16,7 +17,7 @@ class ExerciseConfig:
     min_rep_duration: float = 0.4     # Sekunden
     max_rep_duration: float = 5.0     # Sekunden
 
-
+##Container, der das Ergebnis einer einzigen Wiederholung speichert
 @dataclass
 class RepResult:
     rep_id: int
@@ -26,15 +27,16 @@ class RepResult:
     start_time: float
     end_time: float
 
-
+#abstrakte klasse mir Wissen über Bewegungsabläufe, aber kein Wissen über spezifische Körperteile.
 class BaseEvaluator:
     """Basis-Klasse mit gemeinsamer Logik für alle Übungen."""
     
+    #interne Status initialisiert.
     def __init__(self, config: ExerciseConfig):
         self.config = config
         
         # Tracking-Status
-        self._in_rep: bool = False
+        self._in_rep: bool = False #ist user in wegegung
         self._rep_start_time: float = 0.0
         self._rep_id: int = 0
         
@@ -53,6 +55,8 @@ class BaseEvaluator:
         # Ergebnisse
         self.rep_history: List[RepResult] = []
 
+    #mathematische kerfunktion: 
+    # Logik: Sie berechnet zwei Vektoren und nutzt das Skalarprodukt, um den Winkel dazwischen zu bestimmen.
     @staticmethod
     def _angle(a: Tuple[float, float],
                b: Tuple[float, float],
@@ -62,6 +66,7 @@ class BaseEvaluator:
         bcx, bcy = c[0] - b[0], c[1] - b[1]
         
         dot = bax * bcx + bay * bcy
+        #normailsierung = Winkel unabhängig von der Bildgröße oder Entfernung zur Kamera.
         mag_ba = math.sqrt(bax ** 2 + bay ** 2)
         mag_bc = math.sqrt(bcx ** 2 + bcy ** 2)
         
@@ -71,10 +76,12 @@ class BaseEvaluator:
         cos_angle = max(min(dot / (mag_ba * mag_bc), 1.0), -1.0)
         return math.degrees(math.acos(cos_angle))
 
+    #Platzhalter-Methode. Sie zwingt jeden, der eine neue Übung erstellt, zu definieren, welche Keypoints genutzt werden.
     def _get_relevant_points(self, keypoints: Dict) -> Tuple[Optional[Tuple], ...]:
         """Override in Subclass: Gibt (point_a, point_b, point_c, ref_y_point) zurück."""
         raise NotImplementedError
 
+    # pro Video-Frame
     def evaluate_frame(self, keypoints: Dict, timestamp: Optional[float] = None) -> Dict:
         if timestamp is None:
             timestamp = time.time()
@@ -231,6 +238,10 @@ class BaseEvaluator:
         self.__init__(self.config)
 
 
+# subklassen: überschreibe die platzhalterm
+# Implementierung: überschreibt _get_relevant_points
+# Logik: Sie pickt sich hip, knee und ankle aus dem Keypoint-Dictionary.
+# Rückgabe: Der Winkel wird über das Knie berechnet, die vertikale Höhe (y) wird von der Hüfte genommen.
 class SquatEvaluator(BaseEvaluator):
     """Squat: Winkel = hip-knee-ankle, Referenz = hip_y"""
     
@@ -240,12 +251,41 @@ class SquatEvaluator(BaseEvaluator):
         ankle = keypoints.get("ankle")
         return (hip, knee, ankle, hip)
 
-
+# Implementierung: überschreibe die platzhalter
+# Logik: Sie nutzt shoulder, elbow und wrist.
+# Rückgabe: Der Winkel wird über den Ellbogen berechnet, die Höhe (y) wird von der Schulter genommen.
 class PushupEvaluator(BaseEvaluator):
     """Pushup: Winkel = shoulder-elbow-wrist, Referenz = shoulder_y"""
-    
+
     def _get_relevant_points(self, keypoints: Dict):
         shoulder = keypoints.get("shoulder")
         elbow = keypoints.get("elbow")
         wrist = keypoints.get("wrist")
         return (shoulder, elbow, wrist, shoulder)
+
+
+# ---- ArmRaiseEvaluator: single correct implementation ----
+class ArmRaiseEvaluator(BaseEvaluator):
+    """Arm Raises / Seitenheben: Angle = hip-shoulder-wrist, Reference = wrist_y.
+
+    We set min_depth_ratio=0.0 to avoid relying on vertical-depth scoring for this motion.
+    """
+
+    def __init__(self, config: Optional[ExerciseConfig] = None):
+        if config is None:
+            config = ExerciseConfig(
+                name="ArmRaise",
+                min_angle=45.0,
+                max_angle_top=160.0,
+                min_depth_ratio=0.0,
+                min_good_reps_ratio=0.6,
+                min_rep_duration=0.3,
+                max_rep_duration=5.0,
+            )
+        super().__init__(config)
+
+    def _get_relevant_points(self, keypoints: Dict):
+        hip = keypoints.get("hip")
+        shoulder = keypoints.get("shoulder")
+        wrist = keypoints.get("wrist")
+        return (hip, shoulder, wrist, wrist)

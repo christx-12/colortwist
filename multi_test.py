@@ -2,8 +2,56 @@
 
 import cv2
 import numpy as np
+import time
 from ultralytics import YOLO
-from app.backend.base_evaluator import SquatEvaluator, PushupEvaluator, ExerciseConfig
+from app.backend.base_evaluator import SquatEvaluator, PushupEvaluator, ArmRaiseEvaluator, ExerciseConfig
+
+
+class RepFeedbackOverlay:
+    """UI-only helper that keeps the last rep feedback visible for a short time."""
+
+    def __init__(self, hold_seconds: float = 3.0):
+        self.hold_seconds = hold_seconds
+        self._last_rep = None
+        self._last_time = 0.0
+
+    def update(self, info: dict) -> None:
+        """Capture rep result when a rep finishes (usually only true for 1 frame)."""
+        if info.get("rep_finished") and info.get("last_rep") is not None:
+            self._last_rep = info["last_rep"]
+            self._last_time = time.time()
+
+    def reset(self) -> None:
+        self._last_rep = None
+        self._last_time = 0.0
+
+    def draw(self, frame, font, origin=(20, 170)):
+        """Draw feedback if it is still within the hold window."""
+        if self._last_rep is None:
+            return frame
+
+        if (time.time() - self._last_time) > self.hold_seconds:
+            self._last_rep = None
+            return frame
+
+        rep = self._last_rep
+
+        # Support both object-style (rep.is_good) and dict-style (rep["is_good"]) reps
+        is_good = rep.get("is_good") if isinstance(rep, dict) else rep.is_good
+        score = rep.get("score", 0.0) if isinstance(rep, dict) else rep.score
+        reason = rep.get("reason", "") if isinstance(rep, dict) else (rep.reason or "")
+
+        status = "✅ GUTE REP!" if is_good else "❌ SCHLECHTE REP!"
+        color = (0, 255, 0) if is_good else (0, 0, 255)
+
+        x, y = origin
+        cv2.putText(frame, status, (x, y), font, 0.6, color, 2)
+        cv2.putText(frame, f"Score: {score:.0%}", (x + 170, y), font, 0.6, color, 2)
+
+        if reason and not is_good:
+            cv2.putText(frame, f"Hint: {reason}", (x, y + 25), font, 0.55, (255, 255, 255), 1)
+
+        return frame
 
 
 class ExerciseApp:
@@ -16,17 +64,25 @@ class ExerciseApp:
         cv2.namedWindow("Multi-Exercise Trainer", cv2.WINDOW_NORMAL)  # Resizable Fenster
         cv2.resizeWindow("Multi-Exercise Trainer", 1960, 1080)  
         self.font = cv2.FONT_HERSHEY_SIMPLEX
+        self.rep_feedback_overlay = RepFeedbackOverlay(hold_seconds=3.0)
         self.current_mode = "squat"
         self.set_mode("squat")
 
     def set_mode(self, mode):
         self.current_mode = mode
+
         if mode == "squat":
             config = ExerciseConfig(name="Squat", min_angle=85, max_angle_top=165, min_depth_ratio=0.1)
             self.evaluator = SquatEvaluator(config)
-        else:
+        elif mode == "pushup":
             config = ExerciseConfig(name="Pushup", min_angle=95, max_angle_top=155, min_depth_ratio=0.05)
             self.evaluator = PushupEvaluator(config)
+        elif mode == "armraise":
+            # ArmRaiseEvaluator comes with a sensible default config
+            self.evaluator = ArmRaiseEvaluator()
+        else:
+            raise ValueError(f"Unknown mode: {mode}")
+
         print(f"Modus gewechselt zu: {mode.upper()}")
 
     def get_all_keypoints(self, results):
@@ -55,9 +111,12 @@ class ExerciseApp:
         if self.current_mode == "squat":
             pairs = [("hip", "knee"), ("knee", "ankle")]
             color = (0, 255, 255)
-        else:
+        elif self.current_mode == "pushup":
             pairs = [("shoulder", "elbow"), ("elbow", "wrist")]
             color = (255, 255, 0)
+        else:  # armraise
+            pairs = [("hip", "shoulder"), ("shoulder", "wrist")]
+            color = (0, 200, 0)
 
         for start_key, end_key in pairs:
             pt1 = keypoints.get(start_key)
@@ -74,12 +133,12 @@ class ExerciseApp:
         return frame
 
     def run(self):
-        print("Programm läuft. '1'=Squat, '2'=Pushup, 'r'=Reset, 'q'=Quit")
+        print("Programm läuft. '1'=Squat, '2'=Pushup, '3'=ArmRaise, 'r'=Reset, 'q'=Quit")
         while True:
             ret, frame = self.cap.read()
             if not ret:
                 break
-            
+            q
             results = self.model.predict(frame, verbose=False, conf=0.5)
             keypoints = self.get_all_keypoints(results)
             
@@ -87,6 +146,9 @@ class ExerciseApp:
                 frame = self.draw_exercise_skeleton(frame, keypoints)
             
             info = self.evaluator.evaluate_frame(keypoints)
+            
+            # Update UI-only feedback state (keeps rep result visible for a moment)
+            self.rep_feedback_overlay.update(info)
             
             # UI Overlay
             cv2.rectangle(frame, (10, 10), (420, 180), (0, 0, 0), -1)
@@ -102,14 +164,8 @@ class ExerciseApp:
             # Farbcodierung für Status
             state_color = (0, 255, 255) if state == "in_rep" else (255, 255, 0)
             cv2.putText(frame, f"STATUS: {state.upper()} | {angle_str}", (20, 140), self.font, 0.6, state_color, 1)
+            frame = self.rep_feedback_overlay.draw(frame, self.font, origin=(20, 170))
             
-            # Letzte Rep Feedback
-            if info.get("rep_finished") and info.get("last_rep"):
-                rep = info["last_rep"]
-                feedback = "GUT!" if rep.is_good else f"({rep.reason})"
-                fb_color = (0, 255, 0) if rep.is_good else (0, 0, 255)
-                cv2.putText(frame, feedback, (20, 170), self.font, 0.6, fb_color, 2)
-
             cv2.imshow("Multi-Exercise Trainer", frame)
             
             key = cv2.waitKey(1) & 0xFF
@@ -119,8 +175,11 @@ class ExerciseApp:
                 self.set_mode("squat")
             elif key == ord('2'):
                 self.set_mode("pushup")
+            elif key == ord('3'):
+                self.set_mode("armraise")
             elif key == ord('r'):
                 self.evaluator.reset()
+                self.rep_feedback_overlay.reset()
                 print("Counter zurückgesetzt!")
 
         self.cap.release()
