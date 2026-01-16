@@ -13,6 +13,7 @@ class ExerciseConfig:
     min_depth_ratio: float
     min_good_reps_ratio: float = 0.6
 
+#Container, der das Ergebnis einer einzigen Wiederholung speichert
 @dataclass
 class RepResult:
     rep_id: int
@@ -21,10 +22,12 @@ class RepResult:
     start_time: float
     end_time: float
 
+#abstrakte klasse für Bewegungsabläufe ohne Wissen über spezifische Körperteile.
 class BaseExerciseEvaluator:
+    #interne Status initialisiert.
     def __init__(self, config: ExerciseConfig):
         self.config = config
-        self._in_rep = False
+        self._in_rep = False # bewegts sich user
         self._rep_id = 0
         self.rep_history: List[RepResult] = []
         self._reset_temp_metrics()
@@ -89,7 +92,7 @@ class BaseExerciseEvaluator:
         raise NotImplementedError("Subclasses must implement this")
 
 # --- Spezifische Übungen ---
-
+#spezialisierten Unterklassen
 class SquatEvaluator(BaseExerciseEvaluator):
     def get_exercise_metrics(self, keypoints):
         h, k, a = keypoints.get("hip"), keypoints.get("knee"), keypoints.get("ankle")
