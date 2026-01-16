@@ -4,3 +4,4 @@ env/
 ENV/
 yolo11n-pose.pt
 __pycache__/
+.vscode
