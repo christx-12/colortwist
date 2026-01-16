@@ -10,7 +10,11 @@ class ExerciseApp:
     def __init__(self):
         print("Initialisiere Modell...")
         self.model = YOLO("yolo11n-pose.pt")
-        self.cap = cv2.VideoCapture(3)
+        self.cap = cv2.VideoCapture(3, cv2.CAP_DSHOW)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)   # Breite für Full HD
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080) 
+        cv2.namedWindow("Multi-Exercise Trainer", cv2.WINDOW_NORMAL)  # Resizable Fenster
+        cv2.resizeWindow("Multi-Exercise Trainer", 1960, 1080)  
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.current_mode = "squat"
         self.set_mode("squat")
