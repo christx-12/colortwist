@@ -21,7 +21,7 @@ class ExerciseEvaluatorApp:
         ))
         
         # Kamera
-        self.cap = cv2.VideoCapture(3)
+        self.cap = cv2.VideoCapture(1)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         if not self.cap.isOpened():
@@ -30,6 +30,11 @@ class ExerciseEvaluatorApp:
         # Styling
         self.font = cv2.FONT_HERSHEY_SIMPLEX
         self.show_stats = False
+
+        # Rep-feedback overlay hold (so it doesn't flash for only 1 frame)
+        self.feedback_hold_seconds = 3 # 1,5 sekunden Feedback im UI sichtbar blieben 
+        self._last_rep_feedback = None # speichern der letzten beendeten Wiederholung 
+        self._last_rep_feedback_time = 0.0 # zeitpunkt wann letzte Wiederholung beendet wurde
 
     def get_keypoints_from_yolo(self, results) -> dict:
         """Sichere Keypoint-Extraktion aus YOLO."""
@@ -157,11 +162,11 @@ class ExerciseEvaluatorApp:
                 print("Kamera-Fehler!")
                 break
             
-            # YOLO
+            # YOLO gibt Körperpunkte zurück 
             results = self.model.predict(frame, verbose=False, conf=0.4)
             keypoints = self.get_keypoints_from_yolo(results)
             
-            # Evaluieren
+            # Evaluieren endscheidet State + Rep-info Logik ob Rep gut/ schlecht 
             info = {"state": "no_pose"}
             if keypoints:
                 info = self.evaluator.evaluate_frame(keypoints, time.time())
@@ -189,13 +194,32 @@ class ExerciseEvaluatorApp:
             cv2.putText(frame, f"Status: {state.upper()}", (25, 75), self.font, 0.9, (255,255,255), 3)
             cv2.putText(frame, f"Winkel: {angle_text}", (25, 110), self.font, 0.9, (0,0,0), 3)
             
-            # Live-Rep-Feedback
-            if info.get("rep_finished") and info.get("last_rep"):
-                rep = info["last_rep"]
-                status = "✅ GUTE REP!" if rep.is_good else "❌ SCHLECHTE REP!"
-                rep_color = (0, 255, 0) if rep.is_good else (0, 0, 255)
-                cv2.putText(frame, status, (520, 80), self.font, 1.2, rep_color, 3)
-                cv2.putText(frame, f"Score: {rep.score:.0%}", (520, 120), self.font, 1.0, rep_color, 3)
+            # Live-Rep-Feedback (persist for a moment so it is visible)
+            if info.get("rep_finished") and info.get("last_rep"): # wenn rep fertig speichern 
+                self._last_rep_feedback = info["last_rep"]
+                self._last_rep_feedback_time = time.time()
+
+            if self._last_rep_feedback is not None:
+                elapsed = time.time() - self._last_rep_feedback_time
+                if elapsed <= self.feedback_hold_seconds:
+                    rep = self._last_rep_feedback
+
+                    # Support both object-style (rep.is_good) and dict-style (rep["is_good"]) reps
+                    is_good = rep.get("is_good") if isinstance(rep, dict) else rep.is_good
+                    score = rep.get("score", 0.0) if isinstance(rep, dict) else rep.score
+                    reason = rep.get("reason", "") if isinstance(rep, dict) else (rep.reason or "")
+
+                    status = "✅ GUTE REP!" if is_good else "❌ SCHLECHTE REP!"
+                    rep_color = (0, 255, 0) if is_good else (0, 0, 255)
+
+                    cv2.putText(frame, status, (520, 80), self.font, 1.2, rep_color, 3)
+                    cv2.putText(frame, f"Score: {score:.0%}", (520, 120), self.font, 1.0, rep_color, 3)
+
+                    if reason:
+                        cv2.putText(frame, f"Hint: {reason}", (520, 160), self.font, 0.8, (255, 255, 255), 2)
+                else:
+                    # Expired
+                    self._last_rep_feedback = None
             
             # Pose-Status unten
             pose_ok = bool(keypoints)
@@ -223,6 +247,8 @@ class ExerciseEvaluatorApp:
                 print(f"Stats: {'AN' if self.show_stats else 'AUS'}")
             elif key == ord('r'):
                 self.evaluator.rep_history.clear()
+                self._last_rep_feedback = None
+                self._last_rep_feedback_time = 0.0
                 print("📊 Zurückgesetzt!")
         
         self.cap.release()
